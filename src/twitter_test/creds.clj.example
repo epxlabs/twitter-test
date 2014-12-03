@@ -1,0 +1,3 @@
+(ns twitter-test.creds)
+
+(def oauth-creds ["app-consumer-key" "app-consumer-secret" "user-access-token" "user-access-token-secret"])
