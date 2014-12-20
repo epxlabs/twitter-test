@@ -1,6 +1,7 @@
 (ns twitter-test.core
   (:require [twitter-test.creds :as cr]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [twitter.oauth :as o]
             [twitter.callbacks :as c]
             [twitter.callbacks.handlers :as h]
@@ -22,8 +23,8 @@
     (clojure.pprint/pprint (f input) sw)
     (spit "/tmp/twitter_result.edn" (.toString sw))))
 
-(defn from-file [f]
-  (read-string (slurp f)))
+(defn from-file [& {:keys [file] :or {file "/tmp/twitter_result.edn"}}]
+  (eval (read-string (slurp file))))
 
 (defn make-call [f params]
   (f :oauth-creds creds :params params))
@@ -33,3 +34,18 @@
 
 (defn search [term]
   (make-call s/search {:q term}))
+
+(defn tweet-texts [data]
+  (map :text (get-in data [:body :statuses])))
+
+(defn get-words [data]
+  (mapcat #(str/split % #" ") (tweet-texts data)))
+
+(defn lexical-diversity [words]
+  (/ (* 1.0 (count (into #{} words))) (count words)))
+
+(defn avg-words-tweet [data]
+  (/ (* 1.0 (count (get-words data))) (count (tweet-texts data))))
+
+(defn word-freq [words]
+  (reverse (sort-by (juxt :freq :word) (reduce #(conj % {:word %2 :freq (count (filter #{%2} words))}) [] (into #{} words)))))
