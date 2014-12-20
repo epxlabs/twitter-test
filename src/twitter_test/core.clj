@@ -6,7 +6,9 @@
             [twitter.callbacks :as c]
             [twitter.callbacks.handlers :as h]
             [twitter.api.restful :as r]
-            [twitter.api.search :as s])
+            [twitter.api.search :as s]
+            [loom.graph :as g]
+            [loom.io :as lio])
   (:import java.io.FileWriter
            java.io.StringWriter))
 
@@ -42,6 +44,10 @@
 (defn tweet-texts [data]
   (map :text (get-in data [:body :statuses])))
 
+(defn tweet-texts-user [data]
+  (map (fn [{text :text {user :screen_name} :user}] {:text text :user user})
+    (get-in data [:body :statuses])))
+
 (defn get-words [data]
   (mapcat #(st/split % #" ") (tweet-texts data)))
 
@@ -53,3 +59,27 @@
 
 (defn word-freq [words]
   (reverse (sort-by (juxt :freq :word) (reduce #(conj % {:word %2 :freq (count (filter #{%2} words))}) [] (into #{} words)))))
+
+(defn get-retweets [texts-users]
+  (filter #(re-matches #"^RT\s@.*" (:text %)) texts-users))
+
+(defn retweet-source [text]
+  (st/replace (first (st/split text #"\:")) #"RT\s@" ""))
+
+(defn add-sources [texts-users]
+  (reduce (fn [v tu] (conj v (assoc tu :source (retweet-source (:text tu))))) [] texts-users))
+
+(defn rt-for-graph []
+  (add-sources (get-retweets (tweet-texts-user (from-file)))))
+
+(defn edges-for-graph [rts]
+  (into #{} (map (fn [{:keys [source user]}] [source user]) rts)))
+
+(defn digraph-from-edges [edges]
+  (apply g/digraph edges))
+
+(defn make-digraph []
+  (digraph-from-edges (edges-for-graph (rt-for-graph))))
+
+(defn view-digraph [dg]
+  (lio/view dg))
